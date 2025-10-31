@@ -9,6 +9,7 @@ import '../widgets/private_route.dart';
 import '../widgets/header_app_bar.dart';
 import 'login_screen.dart';
 import 'saved_jobs_screen.dart';
+import 'my_resumes_screen.dart';
 
 class JobsListScreen extends StatefulWidget {
   final String? category;
@@ -21,17 +22,48 @@ class JobsListScreen extends StatefulWidget {
 class _JobsListScreenState extends State<JobsListScreen> {
   final _api = ApiService();
   late Future<List<Job>> _future;
+  bool _isAdmin = false;
+
+  Future<void> _loadRole() async {
+    try {
+      final acc = await _api.getAccount();
+      final roles = <String>{};
+      final role = acc['role'];
+      if (role is String) roles.add(role);
+      final rolesArr = acc['roles'];
+      if (rolesArr is List) {
+        for (final r in rolesArr) {
+          if (r is String) roles.add(r);
+        }
+      }
+      final auths = acc['authorities'];
+      if (auths is List) {
+        for (final a in auths) {
+          if (a is String) roles.add(a);
+        }
+      }
+      setState(() {
+        _isAdmin = roles.any((r) => r.toUpperCase().contains('ADMIN'));
+      });
+    } catch (_) {
+      setState(() {
+        _isAdmin = false;
+      });
+    }
+  }
 
   @override
   void initState() {
     super.initState();
     _future = _api.getJobs(category: widget.category);
+    _loadRole();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: HeaderAppBar(
+        showAdmin: _isAdmin,
         onSearch: (category) {
           Navigator.of(context).push(
             MaterialPageRoute(builder: (_) => JobsListScreen(category: category)),
@@ -40,7 +72,10 @@ class _JobsListScreenState extends State<JobsListScreen> {
         onOpenAdmin: () {
           Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (_) => PrivateRoute(builder: (_) => const AdminDashboardScreen()),
+              builder: (_) => PrivateRoute(
+                builder: (_) => const AdminDashboardScreen(),
+                allowedRoles: const ['ADMIN'],
+              ),
             ),
           );
         },
@@ -52,6 +87,11 @@ class _JobsListScreenState extends State<JobsListScreen> {
         onOpenSavedJobs: () {
           Navigator.of(context).push(
             MaterialPageRoute(builder: (_) => PrivateRoute(builder: (_) => const SavedJobsScreen())),
+          );
+        },
+        onOpenMyResumes: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => PrivateRoute(builder: (_) => const MyResumesScreen())),
           );
         },
         onLogout: () async {
@@ -83,25 +123,141 @@ class _JobsListScreenState extends State<JobsListScreen> {
           if (jobs.isEmpty) {
             return const Center(child: Text('Không có việc phù hợp'));
           }
-          return ListView.separated(
-            itemCount: jobs.length,
-            separatorBuilder: (_, __) => const Divider(height: 1),
-            itemBuilder: (context, index) {
-              final job = jobs[index];
-              return ListTile(
-                title: Text(job.title),
-                subtitle: Text('${job.company} • ${job.location}'),
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => JobDetailScreen(jobId: job.id),
-                    ),
+          return LayoutBuilder(
+            builder: (ctx, constraints) {
+              final isWide = constraints.maxWidth >= 900;
+              final cross = isWide ? 2 : 1;
+              return GridView.builder(
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: cross,
+                  childAspectRatio: isWide ? 2.8 : 2.2,
+                  crossAxisSpacing: 16,
+                  mainAxisSpacing: 16,
+                ),
+                padding: const EdgeInsets.all(16),
+                itemCount: jobs.length,
+                itemBuilder: (context, index) {
+                  final job = jobs[index];
+                  return _JobCard(
+                    job: job,
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => JobDetailScreen(jobId: job.id),
+                        ),
+                      );
+                    },
                   );
                 },
               );
             },
           );
         },
+      ),
+    );
+  }
+}
+
+class _JobCard extends StatelessWidget {
+  final Job job;
+  final VoidCallback onTap;
+  const _JobCard({required this.job, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final logo = job.companyLogo;
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Theme.of(context).dividerColor)),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 80,
+                height: 56,
+                child: _CompanyLogo(logo: logo, company: job.company),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(job.title, style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        const Icon(Icons.location_on_outlined, size: 16),
+                        const SizedBox(width: 6),
+                        Expanded(child: Text(job.location, maxLines: 1, overflow: TextOverflow.ellipsis)),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        const Icon(Icons.bolt, size: 16),
+                        const SizedBox(width: 6),
+                        Text(job.salary.isNotEmpty ? job.salary : '—'),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                children: [
+                  Icon(Icons.favorite_border, size: 20),
+                  const SizedBox(height: 4),
+                  Text('Lưu', style: Theme.of(context).textTheme.bodySmall),
+                ],
+              )
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CompanyLogo extends StatelessWidget {
+  final String logo;
+  final String company;
+  const _CompanyLogo({required this.logo, required this.company});
+
+  @override
+  Widget build(BuildContext context) {
+    if (logo.isNotEmpty) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.network(
+          logo,
+          fit: BoxFit.contain,
+          errorBuilder: (_, __, ___) => _FallbackAvatar(company: company),
+        ),
+      );
+    }
+    return _FallbackAvatar(company: company);
+  }
+}
+
+class _FallbackAvatar extends StatelessWidget {
+  final String company;
+  const _FallbackAvatar({required this.company});
+
+  @override
+  Widget build(BuildContext context) {
+    final initials = company.isNotEmpty ? company.trim().split(' ').map((e) => e.isNotEmpty ? e[0] : '').take(2).join() : '?';
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        color: Theme.of(context).colorScheme.surfaceVariant,
+      ),
+      child: Center(
+        child: Text(initials.toUpperCase(), style: Theme.of(context).textTheme.titleMedium),
       ),
     );
   }

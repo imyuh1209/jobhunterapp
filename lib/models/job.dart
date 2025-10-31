@@ -4,6 +4,9 @@ class Job {
   final String company;
   final String location;
   final String description;
+  // Optional UI fields
+  final String companyLogo; // URL hoặc base64, nếu có
+  final String salary; // Dạng hiển thị, VD: "5,000,000 đ"
 
   Job({
     required this.id,
@@ -11,6 +14,8 @@ class Job {
     required this.company,
     required this.location,
     required this.description,
+    this.companyLogo = '',
+    this.salary = '',
   });
 
   factory Job.fromJson(Map<String, dynamic> json) {
@@ -31,6 +36,39 @@ class Job {
       if (value is List) return value.map((e) => e.toString()).join(', ');
       return value.toString();
     }
+    String _extractLogo(dynamic c, dynamic root) {
+      // Ưu tiên từ company object
+      if (c is Map<String, dynamic>) {
+        final l = c['logo'] ?? c['logoUrl'] ?? c['avatar'] ?? c['image'] ?? c['url'];
+        if (l is String && l.isNotEmpty) return l;
+      }
+      // Fallback từ root
+      final l2 = root is Map<String, dynamic>
+          ? (root['logo'] ?? root['logoUrl'] ?? root['companyLogo'])
+          : null;
+      if (l2 is String && l2.isNotEmpty) return l2;
+      return '';
+    }
+
+    String _extractSalary(Map<String, dynamic> m) {
+      final s = m['salary'] ?? m['salaryText'] ?? m['budget'];
+      if (s is String && s.isNotEmpty) return s;
+      final min = m['salaryMin'] ?? m['minSalary'];
+      final max = m['salaryMax'] ?? m['maxSalary'];
+      String fmt(num? v) {
+        if (v == null) return '';
+        final str = v.toString();
+        return str; // giữ nguyên, backend có thể đã format
+      }
+      num? toNum(dynamic v) => v is num ? v : num.tryParse(v?.toString() ?? '');
+      final minN = toNum(min);
+      final maxN = toNum(max);
+      if (minN != null && maxN != null) return '${fmt(minN)} - ${fmt(maxN)} đ';
+      if (minN != null) return '${fmt(minN)} đ';
+      if (maxN != null) return '${fmt(maxN)} đ';
+      return '';
+    }
+
     return Job(
       id: json['id']?.toString() ?? '',
       // backend có thể dùng 'name' thay vì 'title'
@@ -46,6 +84,8 @@ class Job {
         const ['name', 'title', 'label']
       ),
       description: asString(json['description']),
+      companyLogo: _extractLogo(json['company'], json),
+      salary: _extractSalary(json is Map<String, dynamic> ? json : {}),
     );
   }
 
@@ -55,5 +95,7 @@ class Job {
         'company': company,
         'location': location,
         'description': description,
+        'companyLogo': companyLogo,
+        'salary': salary,
       };
 }

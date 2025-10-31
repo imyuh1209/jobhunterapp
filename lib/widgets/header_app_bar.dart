@@ -5,7 +5,9 @@ class HeaderAppBar extends StatefulWidget implements PreferredSizeWidget {
   final VoidCallback? onOpenAdmin;
   final VoidCallback? onOpenAccount;
   final VoidCallback? onOpenSavedJobs;
+  final VoidCallback? onOpenMyResumes;
   final VoidCallback? onLogout;
+  final bool showAdmin;
 
   const HeaderAppBar({
     super.key,
@@ -13,7 +15,9 @@ class HeaderAppBar extends StatefulWidget implements PreferredSizeWidget {
     this.onOpenAdmin,
     this.onOpenAccount,
     this.onOpenSavedJobs,
+    this.onOpenMyResumes,
     this.onLogout,
+    this.showAdmin = false,
   });
 
   @override
@@ -67,16 +71,21 @@ class _HeaderAppBarState extends State<HeaderAppBar> {
               case 'saved':
                 widget.onOpenSavedJobs?.call();
                 break;
+              case 'myresumes':
+                widget.onOpenMyResumes?.call();
+                break;
               case 'logout':
                 widget.onLogout?.call();
                 break;
             }
           },
-          itemBuilder: (_) => const [
-            PopupMenuItem(value: 'account', child: Text('Tài khoản')),
-            PopupMenuItem(value: 'admin', child: Text('Trang quản trị')),
-            PopupMenuItem(value: 'saved', child: Text('Công việc đã lưu')),
-            PopupMenuItem(value: 'logout', child: Text('Đăng xuất')),
+          itemBuilder: (_) => [
+            const PopupMenuItem(value: 'account', child: Text('Tài khoản')),
+            if (widget.showAdmin)
+              const PopupMenuItem(value: 'admin', child: Text('Trang quản trị')),
+            const PopupMenuItem(value: 'saved', child: Text('Công việc đã lưu')),
+            const PopupMenuItem(value: 'myresumes', child: Text('Hồ sơ đã ứng tuyển')),
+            const PopupMenuItem(value: 'logout', child: Text('Đăng xuất')),
           ],
         ),
       ],
