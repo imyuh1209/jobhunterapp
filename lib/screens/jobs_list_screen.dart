@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/job.dart';
+import '../config/api_config.dart';
 import '../services/api_service.dart';
 import 'job_detail_screen.dart';
 import 'account_screen.dart';
@@ -140,6 +141,7 @@ class _JobsListScreenState extends State<JobsListScreen> {
                   final job = jobs[index];
                   return _JobCard(
                     job: job,
+                    api: _api,
                     onTap: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(
@@ -161,7 +163,8 @@ class _JobsListScreenState extends State<JobsListScreen> {
 class _JobCard extends StatelessWidget {
   final Job job;
   final VoidCallback onTap;
-  const _JobCard({required this.job, required this.onTap});
+  final ApiService? api;
+  const _JobCard({required this.job, required this.onTap, this.api});
 
   @override
   Widget build(BuildContext context) {
@@ -178,7 +181,7 @@ class _JobCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               SizedBox(
-                width: 80,
+                width: 72,
                 height: 56,
                 child: _CompanyLogo(logo: logo, company: job.company),
               ),
@@ -199,7 +202,7 @@ class _JobCard extends StatelessWidget {
                     const SizedBox(height: 8),
                     Row(
                       children: [
-                        const Icon(Icons.bolt, size: 16),
+                        const Icon(Icons.attach_money, size: 16),
                         const SizedBox(width: 6),
                         Text(job.salary.isNotEmpty ? job.salary : '—'),
                       ],
@@ -210,9 +213,7 @@ class _JobCard extends StatelessWidget {
               const SizedBox(width: 12),
               Column(
                 children: [
-                  Icon(Icons.favorite_border, size: 20),
-                  const SizedBox(height: 4),
-                  Text('Lưu', style: Theme.of(context).textTheme.bodySmall),
+                  _SaveStatus(jobId: job.id, api: api),
                 ],
               )
             ],
@@ -231,16 +232,61 @@ class _CompanyLogo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (logo.isNotEmpty) {
+      final resolved = _resolveImageUrl(logo);
       return ClipRRect(
         borderRadius: BorderRadius.circular(8),
         child: Image.network(
-          logo,
+          resolved,
           fit: BoxFit.contain,
           errorBuilder: (_, __, ___) => _FallbackAvatar(company: company),
         ),
       );
     }
     return _FallbackAvatar(company: company);
+  }
+}
+
+String _resolveImageUrl(String url) {
+  final u = url.trim();
+  if (u.startsWith('http://') || u.startsWith('https://')) return u;
+  if (u.startsWith('/')) return '${ApiConfig.baseUrl}$u';
+  return u;
+}
+
+class _SaveStatus extends StatelessWidget {
+  final String jobId;
+  final ApiService? api;
+  const _SaveStatus({required this.jobId, this.api});
+
+  @override
+  Widget build(BuildContext context) {
+    final service = api;
+    if (service == null) {
+      return Column(
+        children: [
+          const Icon(Icons.favorite_border, size: 20),
+          const SizedBox(height: 4),
+          Text('Lưu', style: Theme.of(context).textTheme.bodySmall),
+        ],
+      );
+    }
+    return FutureBuilder<bool>(
+      future: service.isJobSaved(jobId),
+      builder: (context, snapshot) {
+        final saved = snapshot.data == true;
+        return Column(
+          children: [
+            Icon(
+              saved ? Icons.favorite : Icons.favorite_border,
+              size: 20,
+              color: saved ? Theme.of(context).colorScheme.error : null,
+            ),
+            const SizedBox(height: 4),
+            Text(saved ? 'Đã lưu' : 'Lưu', style: Theme.of(context).textTheme.bodySmall),
+          ],
+        );
+      },
+    );
   }
 }
 

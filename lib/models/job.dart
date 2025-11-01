@@ -52,7 +52,10 @@ class Job {
 
     String _extractSalary(Map<String, dynamic> m) {
       final s = m['salary'] ?? m['salaryText'] ?? m['budget'];
-      if (s is String && s.isNotEmpty) return s;
+      if (s != null) {
+        final sStr = s.toString();
+        if (sStr.isNotEmpty) return sStr;
+      }
       final min = m['salaryMin'] ?? m['minSalary'];
       final max = m['salaryMax'] ?? m['maxSalary'];
       String fmt(num? v) {

@@ -45,7 +45,9 @@ class ApiClient {
       InterceptorsWrapper(
         onRequest: (options, handler) async {
           final accessToken = await storage.read(key: 'accessToken');
-          if (accessToken != null && accessToken.isNotEmpty) {
+          // Cho phép bỏ qua Authorization trên một số request (ví dụ refresh)
+          final skipAuth = options.extra['skipAuth'] == true;
+          if (!skipAuth && accessToken != null && accessToken.isNotEmpty) {
             options.headers['Authorization'] = 'Bearer $accessToken';
           }
           handler.next(options);
@@ -58,6 +60,10 @@ class ApiClient {
           }
           // 401: cần refresh token
           if (err.response?.statusCode == 401) {
+            // Tránh lặp vô hạn: nếu đã retry một lần, không refresh nữa
+            if (err.requestOptions.extra['retry'] == true) {
+              return handler.next(err);
+            }
             // Khởi tạo hàng đợi refresh: các request sau await cùng một completer
             if (_refreshingCompleter == null) {
               _refreshingCompleter = Completer<bool>();
@@ -76,6 +82,8 @@ class ApiClient {
                 err.requestOptions.headers['Authorization'] = 'Bearer $newAccessToken';
               }
               try {
+                // Đánh dấu retry để ngăn vòng lặp 401->refresh vô hạn
+                err.requestOptions.extra['retry'] = true;
                 final cloneReq = await dio.fetch(err.requestOptions);
                 return handler.resolve(cloneReq);
               } catch (_) {}
@@ -124,7 +132,17 @@ class ApiClient {
   static Future<bool> _handleRefresh(Dio dio, FlutterSecureStorage storage) async {
     try {
       if (kIsWeb) {
-        final res = await dio.get('/api/v1/auth/refresh', options: Options(headers: {'Accept': 'application/json'}));
+        final saved = await storage.read(key: 'refreshToken');
+        final res = await dio.get(
+          '/api/v1/auth/refresh',
+          options: Options(
+            headers: {
+              'Accept': 'application/json',
+              if (saved != null && saved.isNotEmpty) 'X-Refresh-Token': saved,
+            },
+            extra: {'skipAuth': true},
+          ),
+        );
         final data = (res.data is Map<String, dynamic>) ? (res.data['data'] ?? res.data) : res.data;
         final accessToken = (data is Map<String, dynamic>)
             ? (data['access_token'] ?? data['accessToken'] ?? data['token'])
@@ -144,7 +162,7 @@ class ApiClient {
         try {
           final res = await dio.get(
             '/api/v1/auth/refresh',
-            options: Options(headers: {'X-Refresh-Token': saved, 'Accept': 'application/json'}),
+            options: Options(headers: {'X-Refresh-Token': saved, 'Accept': 'application/json'}, extra: {'skipAuth': true}),
           );
           final data = (res.data is Map<String, dynamic>) ? (res.data['data'] ?? res.data) : res.data;
           final accessToken = (data is Map<String, dynamic>)
@@ -166,7 +184,7 @@ class ApiClient {
           final res = await dio.post(
             '/api/v1/auth/refresh',
             data: {'refreshToken': saved},
-            options: Options(headers: {'Accept': 'application/json'}),
+            options: Options(headers: {'Accept': 'application/json'}, extra: {'skipAuth': true}),
           );
           final data = (res.data is Map<String, dynamic>) ? (res.data['data'] ?? res.data) : res.data;
           final accessToken = (data is Map<String, dynamic>)

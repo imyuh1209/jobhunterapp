@@ -3,7 +3,7 @@ import 'company_screen.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:typed_data';
 
-import '../models/job.dart';
+import '../models/job_detail.dart';
 import '../services/api_service.dart';
 
 class JobDetailScreen extends StatefulWidget {
@@ -17,8 +17,8 @@ class JobDetailScreen extends StatefulWidget {
 
 class _JobDetailScreenState extends State<JobDetailScreen> {
   final _api = ApiService();
-  late Future<Job> _future;
-  Job? _job;
+  late Future<JobDetail> _future;
+  JobDetail? _job;
   bool _saved = false;
   bool _loadingSave = false;
   bool _applied = false;
@@ -28,18 +28,16 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
   @override
   void initState() {
     super.initState();
-    _future = _api.getJob(widget.jobId);
+    _future = _api.getJobDetail(widget.jobId);
     _future.then((j) {
-      if (mounted) setState(() => _job = j);
+      if (!mounted) return;
+      setState(() {
+        _job = j;
+        _saved = j.saved;
+        _applied = j.applied;
+        _applicantCount = j.applicantCount;
+      });
     });
-    _checkSaved();
-    _checkApplied();
-    _loadApplicantCount();
-  }
-
-  Future<void> _checkSaved() async {
-    final ok = await _api.isJobSaved(widget.jobId);
-    if (mounted) setState(() => _saved = ok);
   }
 
   Future<void> _toggleSave() async {
@@ -63,20 +61,12 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
     }
   }
 
-  Future<void> _checkApplied() async {
-    final ok = await _api.hasAppliedJob(widget.jobId);
-    if (mounted) setState(() => _applied = ok);
-  }
 
   Future<void> _apply() async {
     if (_loadingApply || _applied) return;
     await _showApplySheet();
   }
 
-  Future<void> _loadApplicantCount() async {
-    final c = await _api.countResumesByJob(widget.jobId);
-    if (mounted) setState(() => _applicantCount = c);
-  }
 
   Future<void> _showApplySheet() async {
     // Lấy email từ tài khoản để hiển thị (read-only)
@@ -315,7 +305,7 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
           ),
         ),
       ),
-      body: FutureBuilder<Job>(
+      body: FutureBuilder<JobDetail>(
         future: _future,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -340,7 +330,7 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
                 final isWide = constraints.maxWidth >= 900;
                 final details = _JobDetailsSection(
                   title: job.title,
-                  company: job.company,
+                  company: job.company.name,
                   location: job.location,
                   salary: job.salary,
                   applicantCount: _applicantCount,
@@ -348,15 +338,15 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
                   onApply: (_loadingApply || _applied) ? null : _apply,
                 );
                 final companyPanel = _CompanyPanel(
-                  logo: job.companyLogo,
-                  company: job.company,
+                  logo: job.company.logo,
+                  company: job.company.name,
                   onApply: (_loadingApply || _applied) ? null : _apply,
                   onOpenCompany: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) => CompanyScreen(
-                          companyName: job.company,
-                          logoUrl: job.companyLogo,
+                          companyName: job.company.name,
+                          logoUrl: job.company.logo,
                         ),
                       ),
                     );

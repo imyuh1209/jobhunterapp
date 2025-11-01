@@ -33,6 +33,10 @@ class _AccountScreenState extends State<AccountScreen> {
   // Nhận jobs qua email
   bool _subscribeJobs = false;
   final _categoriesCtl = TextEditingController();
+  final _emailSubCtl = TextEditingController();
+  List<Map<String, String>> _skillOptions = const [];
+  Set<String> _selectedSkillIds = {};
+  String? _subscriberId; // để biết create/update
 
   @override
   void initState() {
@@ -40,7 +44,7 @@ class _AccountScreenState extends State<AccountScreen> {
     _tokensFuture = _readTokens();
     _loadAccountPrefill();
     _resumesFuture = _api.getMyResumes();
-    _loadEmailSubscription();
+    _initSubscriberFlow();
   }
 
   Future<Map<String, String?>> _readTokens() async {
@@ -116,21 +120,36 @@ class _AccountScreenState extends State<AccountScreen> {
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã cập nhật thông tin cục bộ')));
   }
 
-  Future<void> _loadEmailSubscription() async {
-    final sub = await _storage.read(key: 'jobs_subscribed');
-    final cats = await _storage.read(key: 'jobs_categories');
-    setState(() {
-      _subscribeJobs = sub == 'true';
-      _categoriesCtl.text = cats ?? '';
-    });
+  // Bỏ lưu local cho email subscription; dùng hoàn toàn dữ liệu backend
+
+  Future<void> _initSubscriberFlow() async {
+    try {
+      final skills = await _api.fetchSkills(page: 1, size: 100);
+      setState(() {
+        _skillOptions = skills.map((e) => {'id': e['id']?.toString() ?? '', 'name': e['name']?.toString() ?? ''}).toList();
+      });
+    } catch (_) {}
+    try {
+      final sub = await _api.getSubscriber();
+      if (sub != null) {
+        setState(() {
+          _subscriberId = sub.id.isNotEmpty ? sub.id : null;
+          _subscribeJobs = true;
+          _emailSubCtl.text = sub.email;
+          final ids = sub.skills.map((s) => s.id).where((id) => id.isNotEmpty).toSet();
+          if (ids.isNotEmpty) {
+            _selectedSkillIds = ids;
+          } else {
+            // fallback by name
+            final nameToId = {for (final o in _skillOptions) o['name']!: o['id']!};
+            _selectedSkillIds = sub.skills.map((s) => nameToId[s.name]).whereType<String>().toSet();
+          }
+        });
+      }
+    } catch (_) {}
   }
 
-  Future<void> _saveEmailSubscription() async {
-    await _storage.write(key: 'jobs_subscribed', value: _subscribeJobs.toString());
-    await _storage.write(key: 'jobs_categories', value: _categoriesCtl.text.trim());
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã lưu cài đặt nhận Jobs qua Email')));
-  }
+  // Không còn lưu cục bộ email subscription
 
   Color _statusColor(String status) {
     switch (status.toUpperCase()) {
@@ -151,13 +170,14 @@ class _AccountScreenState extends State<AccountScreen> {
     _ageCtl.dispose();
     _addressCtl.dispose();
     _categoriesCtl.dispose();
+    _emailSubCtl.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 3,
+      length: 4,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Quản lý tài khoản'),
@@ -166,6 +186,7 @@ class _AccountScreenState extends State<AccountScreen> {
               Tab(text: 'Thông tin cá nhân'),
               Tab(text: 'Lịch sử ứng tuyển'),
               Tab(text: 'Nhận Jobs qua Email'),
+              Tab(text: 'Đổi mật khẩu'),
             ],
           ),
           actions: [
@@ -177,6 +198,7 @@ class _AccountScreenState extends State<AccountScreen> {
             _buildProfileTab(),
             _buildResumesTab(),
             _buildEmailTab(),
+            _buildChangePasswordTab(),
           ],
         ),
       ),
@@ -226,7 +248,7 @@ class _AccountScreenState extends State<AccountScreen> {
           const SizedBox(height: 16),
           SizedBox(
             height: 44,
-            child: ElevatedButton(onPressed: _saveProfileLocally, child: const Text('Cập nhật')),
+            child: ElevatedButton(onPressed: _saveProfileToBackend, child: const Text('Cập nhật')),
           ),
         ],
       ),
@@ -287,26 +309,178 @@ class _AccountScreenState extends State<AccountScreen> {
         children: [
           SwitchListTile(
             value: _subscribeJobs,
-            onChanged: (v) => setState(() => _subscribeJobs = v),
+            onChanged: _toggleSubscribeJobs,
             title: const Text('Nhận thông báo việc phù hợp qua email'),
             subtitle: const Text('Gửi định kỳ theo danh mục bạn chọn'),
           ),
           const SizedBox(height: 8),
           _LabeledField(
-            label: 'Danh mục ưu tiên',
+            label: 'Email nhận việc',
             child: TextField(
-              controller: _categoriesCtl,
-              decoration: const InputDecoration(hintText: 'Ví dụ: Java, Flutter, React'),
+              controller: _emailSubCtl,
+              readOnly: true,
+              decoration: const InputDecoration(hintText: 'Sử dụng email tài khoản'),
+            ),
+          ),
+          const SizedBox(height: 12),
+          _LabeledField(
+            label: 'Kỹ năng quan tâm',
+            child: Wrap(
+              spacing: 8,
+              runSpacing: -8,
+              children: _skillOptions.map((opt) {
+                final id = opt['id'] ?? '';
+                final name = opt['name'] ?? id;
+                final selected = _selectedSkillIds.contains(id);
+                return FilterChip(
+                  label: Text(name),
+                  selected: selected,
+                  onSelected: (v) {
+                    setState(() {
+                      if (v) {
+                        _selectedSkillIds.add(id);
+                      } else {
+                        _selectedSkillIds.remove(id);
+                      }
+                    });
+                  },
+                );
+              }).toList(),
             ),
           ),
           const SizedBox(height: 16),
           SizedBox(
             height: 44,
-            child: ElevatedButton(onPressed: _saveEmailSubscription, child: const Text('Cập nhật')),
+            child: ElevatedButton(onPressed: _saveSubscriberToServer, child: const Text('Cập nhật')),
           ),
         ],
       ),
     );
+  }
+
+  // Đổi mật khẩu
+  final _currentPwdCtl = TextEditingController();
+  final _newPwdCtl = TextEditingController();
+
+  Widget _buildChangePasswordTab() {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _LabeledField(
+            label: 'Mật khẩu hiện tại',
+            child: TextField(controller: _currentPwdCtl, obscureText: true, decoration: const InputDecoration(hintText: 'Nhập mật khẩu hiện tại')),
+          ),
+          const SizedBox(height: 12),
+          _LabeledField(
+            label: 'Mật khẩu mới',
+            child: TextField(controller: _newPwdCtl, obscureText: true, decoration: const InputDecoration(hintText: 'Nhập mật khẩu mới')),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 44,
+            child: ElevatedButton(
+              onPressed: () async {
+                final cur = _currentPwdCtl.text.trim();
+                final neu = _newPwdCtl.text.trim();
+                if (cur.isEmpty || neu.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vui lòng nhập đủ mật khẩu')));
+                  return;
+                }
+                try {
+                  await _api.changePassword(currentPassword: cur, newPassword: neu);
+                  _currentPwdCtl.clear();
+                  _newPwdCtl.clear();
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đổi mật khẩu thành công')));
+                } catch (e) {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
+                }
+              },
+              child: const Text('Đổi mật khẩu'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _saveSubscriberToServer() async {
+    try {
+      if (!_subscribeJobs) {
+        // Nếu tắt, hủy đăng ký trên server
+        if (_subscriberId != null) {
+          await _api.deleteSubscriber(_subscriberId!);
+        }
+        setState(() {
+          _subscriberId = null;
+          _selectedSkillIds.clear();
+        });
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã tắt nhận job qua email')));
+        return;
+      }
+      final email = _emailSubCtl.text.trim();
+      if (email.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vui lòng nhập email')));
+        return;
+      }
+      final ids = _selectedSkillIds.map((e) => int.tryParse(e)).whereType<int>().toList();
+      if (ids.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vui lòng chọn ít nhất một kỹ năng')));
+        return;
+      }
+      if (_subscriberId == null) {
+        final created = await _api.createSubscriber(email: email, name: _nameCtl.text.trim(), skillIds: ids);
+        setState(() => _subscriberId = created.id.isNotEmpty ? created.id : null);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã đăng ký nhận job qua email')));
+      } else {
+        await _api.updateSubscriber(id: _subscriberId!, email: email, name: _nameCtl.text.trim(), skillIds: ids);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã cập nhật thông tin nhận job')));
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
+    }
+  }
+
+  void _toggleSubscribeJobs(bool v) async {
+    setState(() => _subscribeJobs = v);
+    if (!v) {
+      // tắt ngay khi gạt công tắc
+      try {
+        if (_subscriberId != null) {
+          await _api.deleteSubscriber(_subscriberId!);
+        }
+        setState(() {
+          _subscriberId = null;
+          _selectedSkillIds.clear();
+        });
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã tắt nhận job qua email')));
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
+      }
+    }
+  }
+
+  Future<void> _saveProfileToBackend() async {
+    try {
+      final name = _nameCtl.text.trim();
+      final address = _addressCtl.text.trim();
+      final age = int.tryParse(_ageCtl.text.trim());
+      await _api.updateAccount(name: name.isNotEmpty ? name : null, address: address.isNotEmpty ? address : null, age: age, gender: _gender);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã cập nhật hồ sơ trên hệ thống')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
+    }
   }
 }
 

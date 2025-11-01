@@ -4,9 +4,12 @@ import 'package:flutter/material.dart';
 import '../config/api_config.dart';
 import '../models/auth_response.dart';
 import '../models/job.dart';
+import '../models/job_detail.dart';
+import '../models/company_detail.dart';
 import '../models/rest_response.dart';
 import '../models/saved_job.dart';
 import '../models/resume.dart';
+import '../models/subscriber.dart';
 import 'dart:typed_data';
 import 'dio_client.dart';
 
@@ -48,9 +51,24 @@ class ApiService {
   Future<Map<String, dynamic>> getAccount() async {
     final client = await _clientFuture;
     try {
-      final res = await client.dio.get('/api/v1/auth/account', options: Options(headers: {'Accept': 'application/json'}));
-      final data = (res.data is Map<String, dynamic>) ? (res.data['data'] ?? res.data) : res.data;
-      return (data is Map<String, dynamic>) ? data : {'data': data};
+      final res = await client.dio.get(
+        '/api/v1/auth/account',
+        options: Options(headers: {'Accept': 'application/json'}),
+      );
+      // Backend hiện trả về dưới root "user". Ưu tiên lấy data['user'] nếu có.
+      final raw = res.data;
+      Map<String, dynamic> map = {};
+      if (raw is Map<String, dynamic>) {
+        // Một số backend bọc thêm 'data', ưu tiên 'user' trước, rồi tới 'data'.
+        final fromUser = raw['user'];
+        if (fromUser is Map<String, dynamic>) {
+          map = fromUser;
+        } else {
+          final fromData = raw['data'];
+          map = (fromData is Map<String, dynamic>) ? fromData : raw;
+        }
+      }
+      return map.isNotEmpty ? map : {'data': raw};
     } on DioException catch (e) {
       final message = _extractMessage(e.response?.data);
       throw Exception('Lấy thông tin tài khoản thất bại: ${e.response?.statusCode ?? ''}${message.isNotEmpty ? ' - $message' : ''}');
@@ -92,6 +110,20 @@ class ApiService {
         map = (data['data'] is Map<String, dynamic>) ? data['data'] as Map<String, dynamic> : data;
       }
       return Job.fromJson(map);
+    } on DioException catch (e) {
+      final message = _extractMessage(e.response?.data);
+      throw Exception('Tải chi tiết việc thất bại: ${e.response?.statusCode ?? ''}${message.isNotEmpty ? ' - $message' : ''}');
+    }
+  }
+
+  // New: Job Detail (ResJobDetailDTO)
+  Future<JobDetail> getJobDetail(String id) async {
+    final client = await _clientFuture;
+    try {
+      final res = await client.dio.get('/api/v1/jobs/$id', options: Options(headers: {'Accept': 'application/json'}));
+      final raw = (res.data is Map<String, dynamic>) ? (res.data['data'] ?? res.data) : res.data;
+      final map = (raw is Map<String, dynamic>) ? raw : <String, dynamic>{};
+      return JobDetail.fromJson(map);
     } on DioException catch (e) {
       final message = _extractMessage(e.response?.data);
       throw Exception('Tải chi tiết việc thất bại: ${e.response?.statusCode ?? ''}${message.isNotEmpty ? ' - $message' : ''}');
@@ -283,6 +315,146 @@ class ApiService {
       return parsed ?? 0;
     } catch (_) {
       return 0;
+    }
+  }
+
+  // New: Company Detail (ResCompanyDetailDTO)
+  Future<CompanyDetail> getCompanyDetail(String id) async {
+    final client = await _clientFuture;
+    try {
+      final res = await client.dio.get('/api/v1/companies/$id', options: Options(headers: {'Accept': 'application/json'}));
+      final raw = (res.data is Map<String, dynamic>) ? (res.data['data'] ?? res.data) : res.data;
+      final map = (raw is Map<String, dynamic>) ? raw : <String, dynamic>{};
+      return CompanyDetail.fromJson(map);
+    } on DioException catch (e) {
+      final message = _extractMessage(e.response?.data);
+      throw Exception('Tải chi tiết công ty thất bại: ${e.response?.statusCode ?? ''}${message.isNotEmpty ? ' - $message' : ''}');
+    }
+  }
+
+  // ===== Skills & Subscriber (Job by Email) =====
+  Future<List<Map<String, dynamic>>> fetchSkills({int page = 1, int size = 100, String sort = 'createdAt,desc'}) async {
+    final client = await _clientFuture;
+    try {
+      final res = await client.dio.get(
+        '/api/v1/skills',
+        queryParameters: {'page': page, 'size': size, 'sort': sort},
+        options: Options(headers: {'Accept': 'application/json'}),
+      );
+      // Trả về list dạng [{id, name}...]
+      final list = unwrapPageList(res.data);
+      return list.map((e) => {
+            'id': e['id']?.toString(),
+            'name': e['name']?.toString() ?? e['title']?.toString() ?? '',
+          }).toList();
+    } on DioException catch (e) {
+      final message = extractMessage(e.response?.data);
+      throw Exception('Tải danh sách kỹ năng thất bại: ${e.response?.statusCode ?? ''}${message.isNotEmpty ? ' - $message' : ''}');
+    }
+  }
+
+  Future<Subscriber?> getSubscriber() async {
+    final client = await _clientFuture;
+    try {
+      // Ưu tiên endpoint /subscribers/me nếu có, fallback GET chung trả về object.
+      Response res;
+      try {
+        res = await client.dio.get('/api/v1/subscribers/me', options: Options(headers: {'Accept': 'application/json'}));
+      } catch (_) {
+        res = await client.dio.get('/api/v1/subscribers', options: Options(headers: {'Accept': 'application/json'}));
+      }
+      final raw = (res.data is Map<String, dynamic>) ? (res.data['data'] ?? res.data) : res.data;
+      if (raw is Map<String, dynamic>) return Subscriber.fromJson(raw);
+      // Một số backend trả danh sách một phần tử
+      final list = unwrapList(res.data);
+      if (list.isNotEmpty) return Subscriber.fromJson(list.first);
+      return null;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) return null; // chưa có subscriber
+      final message = extractMessage(e.response?.data);
+      throw Exception('Tải subscriber thất bại: ${e.response?.statusCode ?? ''}${message.isNotEmpty ? ' - $message' : ''}');
+    }
+  }
+
+  Future<Subscriber> createSubscriber({required String email, required String name, required List<int> skillIds}) async {
+    final client = await _clientFuture;
+    try {
+      final payload = {
+        'email': email,
+        'name': name,
+        'skills': skillIds.map((id) => {'id': id}).toList(),
+      };
+      final res = await client.dio.post('/api/v1/subscribers', data: payload, options: Options(headers: {'Accept': 'application/json'}));
+      final raw = (res.data is Map<String, dynamic>) ? (res.data['data'] ?? res.data) : res.data;
+      final map = (raw is Map<String, dynamic>) ? raw : <String, dynamic>{};
+      return Subscriber.fromJson(map);
+    } on DioException catch (e) {
+      final message = extractMessage(e.response?.data);
+      throw Exception('Tạo subscriber thất bại: ${e.response?.statusCode ?? ''}${message.isNotEmpty ? ' - $message' : ''}');
+    }
+  }
+
+  Future<Subscriber> updateSubscriber({required String id, required String email, required String name, required List<int> skillIds}) async {
+    final client = await _clientFuture;
+    try {
+      final payload = {
+        'id': id,
+        'email': email,
+        'name': name,
+        'skills': skillIds.map((sid) => {'id': sid}).toList(),
+      };
+      final res = await client.dio.put('/api/v1/subscribers', data: payload, options: Options(headers: {'Accept': 'application/json'}));
+      final raw = (res.data is Map<String, dynamic>) ? (res.data['data'] ?? res.data) : res.data;
+      final map = (raw is Map<String, dynamic>) ? raw : <String, dynamic>{};
+      return Subscriber.fromJson(map);
+    } on DioException catch (e) {
+      final message = extractMessage(e.response?.data);
+      throw Exception('Cập nhật subscriber thất bại: ${e.response?.statusCode ?? ''}${message.isNotEmpty ? ' - $message' : ''}');
+    }
+  }
+
+  Future<bool> deleteSubscriber(String id) async {
+    final client = await _clientFuture;
+    try {
+      await client.dio.delete('/api/v1/subscribers/$id', options: Options(headers: {'Accept': 'application/json'}));
+      return true;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) return true; // không còn subscriber cũng coi như đã tắt
+      final message = extractMessage(e.response?.data);
+      throw Exception('Hủy đăng ký nhận job thất bại: ${e.response?.statusCode ?? ''}${message.isNotEmpty ? ' - $message' : ''}');
+    }
+  }
+
+  Future<bool> updateAccount({String? name, String? email, String? gender, String? address, int? age}) async {
+    final client = await _clientFuture;
+    try {
+      final payload = <String, dynamic>{
+        if (name != null) 'name': name,
+        if (email != null) 'email': email,
+        if (gender != null) 'gender': gender,
+        if (address != null) 'address': address,
+        if (age != null) 'age': age,
+      };
+      await client.dio.put('/api/v1/auth/account', data: payload, options: Options(headers: {'Accept': 'application/json'}));
+      return true;
+    } on DioException catch (e) {
+      final message = extractMessage(e.response?.data);
+      throw Exception('Cập nhật tài khoản thất bại: ${e.response?.statusCode ?? ''}${message.isNotEmpty ? ' - $message' : ''}');
+    }
+  }
+
+  Future<bool> changePassword({required String currentPassword, required String newPassword}) async {
+    final client = await _clientFuture;
+    try {
+      await client.dio.post(
+        '/api/v1/auth/change-password',
+        data: {'currentPassword': currentPassword, 'newPassword': newPassword},
+        options: Options(headers: {'Accept': 'application/json'}),
+      );
+      return true;
+    } on DioException catch (e) {
+      final message = extractMessage(e.response?.data);
+      throw Exception('Đổi mật khẩu thất bại: ${e.response?.statusCode ?? ''}${message.isNotEmpty ? ' - $message' : ''}');
     }
   }
 
