@@ -1,3 +1,5 @@
+import '../utils/url_utils.dart';
+
 class CompanyDetail {
   final String id;
   final String name;
@@ -35,7 +37,7 @@ class CompanyDetail {
       name: asString(json['name']),
       description: asString(json['description']),
       address: asString(json['address']),
-      logo: asString(json['logo']),
+      logo: buildImageUrl(asString(json['logo'])),
       jobs: jobs,
     );
   }

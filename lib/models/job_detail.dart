@@ -1,9 +1,15 @@
+import '../utils/url_utils.dart';
+
 class JobDetail {
   final String id;
   final String title;
   final String description;
   final String location;
   final String salary;
+  // NEW alias fields from backend
+  final int? salaryFrom;
+  final int? salaryTo;
+  final bool isNegotiable;
   final String quantity;
   final String level;
   final String startDate;
@@ -21,6 +27,9 @@ class JobDetail {
     required this.description,
     required this.location,
     required this.salary,
+    this.salaryFrom,
+    this.salaryTo,
+    this.isNegotiable = false,
     required this.quantity,
     required this.level,
     required this.startDate,
@@ -65,12 +74,28 @@ class JobDetail {
       }
     }
 
+    int? _asInt(dynamic v) {
+      if (v == null) return null;
+      if (v is int) return v;
+      if (v is num) return v.toInt();
+      return int.tryParse(v.toString());
+    }
+    bool _asBool(dynamic v) {
+      if (v is bool) return v;
+      if (v is String) return v.toLowerCase() == 'true';
+      if (v is num) return v != 0;
+      return false;
+    }
+
     return JobDetail(
       id: asString(json['id']),
       title: asString(json['name']),
       description: asString(json['description']),
       location: asString(json['location']),
       salary: asString(json['salary']),
+      salaryFrom: _asInt(json['salary_from'] ?? json['salaryFrom']),
+      salaryTo: _asInt(json['salary_to'] ?? json['salaryTo']),
+      isNegotiable: _asBool(json['is_negotiable'] ?? json['isNegotiable'] ?? json['negotiable']),
       quantity: asString(json['quantity']),
       level: asString(json['level']),
       startDate: asString(json['startDate']),
@@ -112,7 +137,7 @@ class CompanyInfo {
       name: asString(json['name']),
       description: asString(json['description']),
       address: asString(json['address']),
-      logo: asString(json['logo']),
+      logo: buildImageUrl(asString(json['logo'])),
     );
   }
 

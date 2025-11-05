@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../screens/jobs_list_screen.dart';
 import '../screens/saved_jobs_screen.dart';
 import '../screens/account_screen.dart';
+import '../screens/hiring_jobs_screen.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
@@ -15,6 +16,7 @@ class _HomeShellState extends State<HomeShell> {
 
   final _pages = const [
     JobsListScreen(),
+    HiringJobsScreen(),
     SavedJobsScreen(),
     AccountScreen(),
   ];
@@ -28,6 +30,7 @@ class _HomeShellState extends State<HomeShell> {
         onDestinationSelected: (i) => setState(() => _index = i),
         destinations: const [
           NavigationDestination(icon: Icon(Icons.work_outline), label: 'Việc làm'),
+          NavigationDestination(icon: Icon(Icons.campaign_outlined), label: 'Đang tuyển'),
           NavigationDestination(icon: Icon(Icons.bookmark_outline), label: 'Đã lưu'),
           NavigationDestination(icon: Icon(Icons.person_outline), label: 'Tài khoản'),
         ],

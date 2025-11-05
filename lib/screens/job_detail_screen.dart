@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/format_utils.dart';
 import 'company_screen.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:typed_data';
@@ -24,6 +25,52 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
   bool _applied = false;
   bool _loadingApply = false;
   int _applicantCount = 0;
+
+  String _fmtDate(String raw) {
+    try {
+      if (raw.isEmpty) return '—';
+      final dt = DateTime.tryParse(raw);
+      if (dt == null) return raw;
+      final d = dt.toLocal();
+      String two(int v) => v.toString().padLeft(2, '0');
+      return '${two(d.day)}/${two(d.month)}/${d.year}';
+    } catch (_) {
+      return raw;
+    }
+  }
+
+  String _fmtDateRange(String? start, String? end) {
+    final s = (start ?? '').trim();
+    final e = (end ?? '').trim();
+    if (s.isEmpty && e.isEmpty) return '—';
+    if (s.isEmpty) return _fmtDate(e);
+    if (e.isEmpty) return _fmtDate(s);
+    return '${_fmtDate(s)} - ${_fmtDate(e)}';
+  }
+
+  String _extractEmail(Map<String, dynamic> acc) {
+    String asStr(dynamic v) => v?.toString() ?? '';
+    String pick(dynamic v) {
+      final s = asStr(v).trim();
+      return s.isNotEmpty ? s : '';
+    }
+    final user = acc['user'];
+    final data = acc['data'];
+    final candidates = <String>[
+      pick(acc['email']),
+      pick(acc['username']),
+      if (user is Map) pick(user['email']),
+      if (user is Map) pick(user['username']),
+      if (data is Map) pick(data['email']),
+      if (data is Map) pick(data['username']),
+      if (data is Map && data['user'] is Map) pick((data['user'] as Map)['email']),
+      if (data is Map && data['user'] is Map) pick((data['user'] as Map)['username']),
+    ];
+    for (final c in candidates) {
+      if (c.isNotEmpty) return c;
+    }
+    return '';
+  }
 
   @override
   void initState() {
@@ -73,7 +120,9 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
     String emailValue = '';
     try {
       final acc = await _api.getAccount();
-      emailValue = acc['email']?.toString() ?? '';
+      if (acc is Map<String, dynamic>) {
+        emailValue = _extractEmail(acc);
+      }
     } catch (_) {}
     Uint8List? pickedBytes;
     String? pickedName;
@@ -140,6 +189,7 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
                     jobId: widget.jobId,
                     url: finalUrl,
                     status: 'PENDING',
+                    email: emailValue.isNotEmpty ? emailValue : null,
                   );
                   if (!mounted) return;
                   setState(() {
@@ -187,8 +237,42 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
                     const Divider(),
                     const SizedBox(height: 12),
                     Text(
-                      'Bạn đang ứng tuyển công việc ${_job?.title ?? ''} tại ${_job?.company ?? ''}',
+                      'Bạn đang ứng tuyển công việc ${_job?.title ?? ''} tại ${_job?.company.name ?? ''}',
                       style: Theme.of(ctx).textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 16,
+                          backgroundImage: (_job?.company.logo ?? '').isNotEmpty
+                              ? NetworkImage(_job!.company.logo)
+                              : null,
+                          child: (_job?.company.logo ?? '').isEmpty
+                              ? const Icon(Icons.business)
+                              : null,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(_job?.company.name ?? ''),
+                              if ((_job?.location ?? '').isNotEmpty)
+                                Text('Địa điểm: ${FormatUtils.formatLocation(_job?.location ?? '')}',
+                                    style: Theme.of(ctx).textTheme.bodySmall),
+                              Text(
+                                'Lương: ${FormatUtils.formatSalaryFromTo(_job?.salaryFrom, _job?.salaryTo, isNegotiable: _job?.isNegotiable ?? false)}',
+                                style: Theme.of(ctx).textTheme.bodySmall,
+                              ),
+                              Text(
+                                'Thời gian: ${_fmtDateRange(_job?.startDate, _job?.endDate)}',
+                                style: Theme.of(ctx).textTheme.bodySmall,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 12),
                     const Text('Email'),
@@ -252,7 +336,7 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
                       width: double.infinity,
                       height: 44,
                       child: FilledButton(
-                        onPressed: submitting ? null : submit,
+                        onPressed: (submitting || emailValue.trim().isEmpty || pickedBytes == null) ? null : submit,
                         child: submitting
                             ? const SizedBox(
                                 width: 18,
@@ -332,7 +416,7 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
                   title: job.title,
                   company: job.company.name,
                   location: job.location,
-                  salary: job.salary,
+                  salary: FormatUtils.formatSalaryFromTo(job.salaryFrom, job.salaryTo, isNegotiable: job.isNegotiable),
                   applicantCount: _applicantCount,
                   description: job.description,
                   onApply: (_loadingApply || _applied) ? null : _apply,
@@ -457,15 +541,15 @@ class _JobDetailsSection extends StatelessWidget {
             const SizedBox(height: 12),
             Row(
               children: [
-                const Icon(Icons.attach_money, size: 18),
+                const Icon(Icons.bolt, size: 18),
                 const SizedBox(width: 6),
-                Text(salary.isNotEmpty ? salary : '—'),
+                Text(FormatUtils.formatSalaryRange(salary)),
                 const SizedBox(width: 16),
                 const Icon(Icons.location_on_outlined, size: 18),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    location,
+                    FormatUtils.formatLocation(location),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),

@@ -31,28 +31,73 @@ class _HeaderAppBarState extends State<HeaderAppBar> {
   final _controller = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    _controller.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return AppBar(
       titleSpacing: 8,
       title: Row(
         children: [
-          const Icon(Icons.work_outline),
+          // Hiển thị logo web tĩnh từ thư mục web
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: Image.network(
+              '/logoweb.png',
+              width: 28,
+              height: 28,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => const Icon(Icons.work_outline),
+            ),
+          ),
           const SizedBox(width: 8),
           const Text('JobHunter'),
           const SizedBox(width: 16),
           Expanded(
             child: TextField(
               controller: _controller,
+              textInputAction: TextInputAction.search,
               decoration: InputDecoration(
-                hintText: 'Tìm kiếm danh mục... (ví dụ: Java, React)',
+                hintText: 'Tìm việc theo từ khóa, địa điểm, công ty',
                 isDense: true,
+                filled: true,
+                fillColor: Theme.of(context).colorScheme.surfaceVariant,
                 prefixIcon: const Icon(Icons.search),
                 contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                suffixIcon: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_controller.text.isNotEmpty)
+                      IconButton(
+                        tooltip: 'Xóa',
+                        onPressed: () {
+                          _controller.clear();
+                          widget.onSearch('');
+                        },
+                        icon: const Icon(Icons.close),
+                      ),
+                    IconButton(
+                      tooltip: 'Tìm kiếm',
+                      onPressed: () {
+                        widget.onSearch(_controller.text.trim());
+                      },
+                      icon: const Icon(Icons.arrow_forward),
+                    ),
+                  ],
+                ),
               ),
               onSubmitted: (value) {
-                final v = value.trim();
-                if (v.isNotEmpty) widget.onSearch(v);
+                widget.onSearch(value.trim());
               },
             ),
           ),

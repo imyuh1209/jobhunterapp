@@ -1,3 +1,5 @@
+import '../utils/url_utils.dart';
+
 class Job {
   final String id;
   final String title;
@@ -7,6 +9,10 @@ class Job {
   // Optional UI fields
   final String companyLogo; // URL hoặc base64, nếu có
   final String salary; // Dạng hiển thị, VD: "5,000,000 đ"
+  // NEW alias fields from backend (snake_case)
+  final int? salaryFrom;
+  final int? salaryTo;
+  final bool isNegotiable;
 
   Job({
     required this.id,
@@ -16,6 +22,9 @@ class Job {
     required this.description,
     this.companyLogo = '',
     this.salary = '',
+    this.salaryFrom,
+    this.salaryTo,
+    this.isNegotiable = false,
   });
 
   factory Job.fromJson(Map<String, dynamic> json) {
@@ -40,13 +49,13 @@ class Job {
       // Ưu tiên từ company object
       if (c is Map<String, dynamic>) {
         final l = c['logo'] ?? c['logoUrl'] ?? c['avatar'] ?? c['image'] ?? c['url'];
-        if (l is String && l.isNotEmpty) return l;
+        if (l is String && l.isNotEmpty) return buildImageUrl(l);
       }
       // Fallback từ root
       final l2 = root is Map<String, dynamic>
           ? (root['logo'] ?? root['logoUrl'] ?? root['companyLogo'])
           : null;
-      if (l2 is String && l2.isNotEmpty) return l2;
+      if (l2 is String && l2.isNotEmpty) return buildImageUrl(l2);
       return '';
     }
 
@@ -72,6 +81,20 @@ class Job {
       return '';
     }
 
+    // Parse alias fields
+    int? _asInt(dynamic v) {
+      if (v == null) return null;
+      if (v is int) return v;
+      if (v is num) return v.toInt();
+      return int.tryParse(v.toString());
+    }
+    bool _asBool(dynamic v) {
+      if (v is bool) return v;
+      if (v is String) return v.toLowerCase() == 'true';
+      if (v is num) return v != 0;
+      return false;
+    }
+
     return Job(
       id: json['id']?.toString() ?? '',
       // backend có thể dùng 'name' thay vì 'title'
@@ -89,6 +112,9 @@ class Job {
       description: asString(json['description']),
       companyLogo: _extractLogo(json['company'], json),
       salary: _extractSalary(json is Map<String, dynamic> ? json : {}),
+      salaryFrom: _asInt(json['salary_from'] ?? json['salaryFrom']),
+      salaryTo: _asInt(json['salary_to'] ?? json['salaryTo']),
+      isNegotiable: _asBool(json['is_negotiable'] ?? json['isNegotiable'] ?? json['negotiable']),
     );
   }
 
@@ -100,5 +126,8 @@ class Job {
         'description': description,
         'companyLogo': companyLogo,
         'salary': salary,
+        'salary_from': salaryFrom,
+        'salary_to': salaryTo,
+        'is_negotiable': isNegotiable,
       };
 }

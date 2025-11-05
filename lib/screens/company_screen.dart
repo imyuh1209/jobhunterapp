@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/format_utils.dart';
 
 import '../models/company_detail.dart';
 import '../config/api_config.dart';
@@ -143,46 +144,51 @@ class _CompanyScreenState extends State<CompanyScreen> {
                         borderRadius: BorderRadius.circular(12),
                         side: BorderSide(color: Theme.of(context).dividerColor),
                       ),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                        child: Row(
-                          children: [
-                            SizedBox(
-                              width: 56,
-                              height: 40,
-                              child: _CompanyLogo(logo: job.companyLogo, company: job.company),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(job.title, style: Theme.of(context).textTheme.titleMedium),
-                                  const SizedBox(height: 6),
-                                  Row(
-                                    children: [
-                                      const Icon(Icons.location_on_outlined, size: 16),
-                                      const SizedBox(width: 6),
-                                      Expanded(child: Text(job.location, maxLines: 1, overflow: TextOverflow.ellipsis)),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Row(
-                                    children: [
-                                      const Icon(Icons.attach_money, size: 16),
-                                      const SizedBox(width: 6),
-                                      Builder(builder: (context) {
-                                        final s = ('${job.salary ?? ''}').trim();
-                                        return Text(s.isNotEmpty ? s : '—');
-                                      }),
-                                    ],
-                                  ),
-                                ],
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => JobDetailScreen(jobId: job.id)),
+                          );
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                          child: Row(
+                            children: [
+                              SizedBox(
+                                width: 100,
+                                height: 80,
+                                child: _CompanyLogo(logo: job.companyLogo, company: job.company),
                               ),
-                            ),
-                            const SizedBox(width: 8),
-                            const Icon(Icons.chevron_right),
-                          ],
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(job.title, style: Theme.of(context).textTheme.titleMedium),
+                                    const SizedBox(height: 6),
+                                    Row(
+                                      children: [
+                                        const Icon(Icons.location_on_outlined, size: 16),
+                                        const SizedBox(width: 6),
+                                        Expanded(child: Text(FormatUtils.formatLocation(job.location), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Row(
+                                      children: [
+                                        const Icon(Icons.bolt, size: 16),
+                                        const SizedBox(width: 6),
+                                        Text(FormatUtils.formatSalaryFromTo(job.salaryFrom, job.salaryTo, isNegotiable: job.isNegotiable)),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              const Icon(Icons.chevron_right),
+                            ],
+                          ),
                         ),
                       ),
                     );

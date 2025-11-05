@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../models/saved_job.dart';
+import '../utils/format_utils.dart';
+import '../utils/url_utils.dart';
 import 'job_detail_screen.dart';
 
 class SavedJobsScreen extends StatefulWidget {
@@ -62,9 +64,46 @@ class _SavedJobsScreenState extends State<SavedJobsScreen> {
               separatorBuilder: (_, __) => const Divider(height: 1),
               itemBuilder: (context, index) {
                 final s = items[index];
+                String _initial(String v) => (v.isNotEmpty ? v.trim()[0] : '•').toUpperCase();
+                final logoUrl = buildImageUrl(s.companyLogo);
                 return ListTile(
+                  leading: SizedBox(
+                    width: 48,
+                    height: 48,
+                    child: logoUrl.isNotEmpty
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.network(
+                              logoUrl,
+                              fit: BoxFit.contain,
+                              errorBuilder: (_, __, ___) => CircleAvatar(child: Text(_initial(s.company))),
+                            ),
+                          )
+                        : CircleAvatar(child: Text(_initial(s.company))),
+                  ),
                   title: Text(s.title.isNotEmpty ? s.title : '—'),
-                  subtitle: Text('${s.company.isNotEmpty ? s.company : '—'} • ${s.location.isNotEmpty ? s.location : '—'}'),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('${s.company.isNotEmpty ? s.company : '—'} • ${s.location.isNotEmpty ? s.location : '—'}'),
+                      const SizedBox(height: 4),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.bolt, size: 16),
+                          const SizedBox(width: 6),
+                          Text(
+                            FormatUtils.formatSalaryFromTo(
+                              s.salaryFrom,
+                              s.salaryTo,
+                              isNegotiable: s.isNegotiable,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                   trailing: IconButton(
                     tooltip: 'Bỏ lưu',
                     icon: const Icon(Icons.bookmark_remove),

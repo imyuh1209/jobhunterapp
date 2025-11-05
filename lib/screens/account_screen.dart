@@ -24,6 +24,7 @@ class _AccountScreenState extends State<AccountScreen> {
   final _nameCtl = TextEditingController();
   final _ageCtl = TextEditingController();
   final _addressCtl = TextEditingController();
+  final _companyCtl = TextEditingController();
   String _gender = 'Nam';
   String _email = '';
 
@@ -72,29 +73,59 @@ class _AccountScreenState extends State<AccountScreen> {
 
   Future<void> _loadAccountPrefill() async {
     try {
-      final acc = await _api.getAccount();
-      final name = acc['name'] ?? acc['fullName'] ?? acc['username'];
-      final email = acc['email'];
-      final gender = acc['gender'] ?? acc['sex'];
+      // Ưu tiên /api/v1/users/me; nếu trống hoặc lỗi, fallback /api/v1/auth/account
+      Map<String, dynamic> acc = {};
+      try {
+        acc = await _api.getUserMe();
+      } catch (_) {}
+      bool emptyAcc = acc.isEmpty || (
+        (acc['email'] == null || acc['email'].toString().isEmpty) &&
+        (acc['name'] == null || acc['name'].toString().isEmpty)
+      );
+      if (emptyAcc) {
+        try {
+          acc = await _api.getAccount();
+        } catch (_) {}
+      }
+
+      final name = acc['name'] ?? acc['fullName'] ?? acc['username'] ?? acc['displayName'];
+      final email = acc['email'] ?? acc['username'];
+      final genderRaw = acc['gender'] ?? acc['sex'];
       final address = acc['address'] ?? acc['location'];
+      final company = acc['company'] ?? acc['companyName'];
       final ageRaw = acc['age'];
+      // Map backend gender enum to VN labels
+      final gender = () {
+        final g = (genderRaw?.toString() ?? '').toUpperCase();
+        if (g == 'MALE') return 'Nam';
+        if (g == 'FEMALE') return 'Nữ';
+        if (['OTHER','UNKNOWN','KHAC'].contains(g)) return 'Khác';
+        return genderRaw?.toString();
+      }();
       setState(() {
         _nameCtl.text = (name?.toString() ?? '').trim();
         _email = email?.toString() ?? '';
-        _gender = ['Nam', 'Nữ', 'Khác'].contains(gender) ? gender : (_gender);
+        _gender = ['Nam', 'Nữ', 'Khác'].contains(gender) ? gender! : (_gender);
         _addressCtl.text = (address?.toString() ?? '').trim();
+        _companyCtl.text = (company?.toString() ?? '').trim();
         _ageCtl.text = ageRaw?.toString() ?? '';
       });
+      // Đồng bộ email vào tab Email nếu chưa có giá trị
+      if ((_emailSubCtl.text).isEmpty && _email.isNotEmpty) {
+        _emailSubCtl.text = _email;
+      }
       // Overlay bởi dữ liệu đã lưu cục bộ (nếu có)
       final savedName = await _storage.read(key: 'profile_name');
       final savedAge = await _storage.read(key: 'profile_age');
       final savedGender = await _storage.read(key: 'profile_gender');
       final savedAddr = await _storage.read(key: 'profile_address');
+      final savedCompany = await _storage.read(key: 'profile_company');
       setState(() {
         if ((savedName ?? '').isNotEmpty) _nameCtl.text = savedName!;
         if ((savedAge ?? '').isNotEmpty) _ageCtl.text = savedAge!;
         if ((savedGender ?? '').isNotEmpty) _gender = savedGender!;
         if ((savedAddr ?? '').isNotEmpty) _addressCtl.text = savedAddr!;
+        if ((savedCompany ?? '').isNotEmpty) _companyCtl.text = savedCompany!;
       });
     } catch (_) {
       // fallback từ local nếu không lấy được acc
@@ -102,11 +133,13 @@ class _AccountScreenState extends State<AccountScreen> {
       final savedAge = await _storage.read(key: 'profile_age');
       final savedGender = await _storage.read(key: 'profile_gender');
       final savedAddr = await _storage.read(key: 'profile_address');
+      final savedCompany = await _storage.read(key: 'profile_company');
       setState(() {
         _nameCtl.text = savedName ?? '';
         _ageCtl.text = savedAge ?? '';
         _gender = savedGender ?? 'Nam';
         _addressCtl.text = savedAddr ?? '';
+        _companyCtl.text = savedCompany ?? '';
       });
     }
   }
@@ -116,6 +149,7 @@ class _AccountScreenState extends State<AccountScreen> {
     await _storage.write(key: 'profile_age', value: _ageCtl.text.trim());
     await _storage.write(key: 'profile_gender', value: _gender);
     await _storage.write(key: 'profile_address', value: _addressCtl.text.trim());
+    await _storage.write(key: 'profile_company', value: _companyCtl.text.trim());
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã cập nhật thông tin cục bộ')));
   }
@@ -169,6 +203,7 @@ class _AccountScreenState extends State<AccountScreen> {
     _nameCtl.dispose();
     _ageCtl.dispose();
     _addressCtl.dispose();
+    _companyCtl.dispose();
     _categoriesCtl.dispose();
     _emailSubCtl.dispose();
     super.dispose();
@@ -177,7 +212,7 @@ class _AccountScreenState extends State<AccountScreen> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 4,
+      length: 3,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Quản lý tài khoản'),
@@ -185,7 +220,6 @@ class _AccountScreenState extends State<AccountScreen> {
             tabs: [
               Tab(text: 'Thông tin cá nhân'),
               Tab(text: 'Lịch sử ứng tuyển'),
-              Tab(text: 'Nhận Jobs qua Email'),
               Tab(text: 'Đổi mật khẩu'),
             ],
           ),
@@ -197,7 +231,6 @@ class _AccountScreenState extends State<AccountScreen> {
           children: [
             _buildProfileTab(),
             _buildResumesTab(),
-            _buildEmailTab(),
             _buildChangePasswordTab(),
           ],
         ),
@@ -220,10 +253,6 @@ class _AccountScreenState extends State<AccountScreen> {
             child: TextField(readOnly: true, controller: TextEditingController(text: _email), decoration: const InputDecoration()),
           ),
           const SizedBox(height: 12),
-          _LabeledField(
-            label: 'Tuổi',
-            child: TextField(controller: _ageCtl, keyboardType: TextInputType.number, decoration: const InputDecoration(hintText: 'VD: 21')),
-          ),
           const SizedBox(height: 12),
           _LabeledField(
             label: 'Giới tính',
@@ -284,6 +313,11 @@ class _AccountScreenState extends State<AccountScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('Trạng thái: $status'),
+                  if ((r.companyName ?? '').isNotEmpty) Text('Công ty: ${r.companyName}'),
+                  if (r.createdAt != null)
+                    Text(
+                      'Ngày nộp: ${r.createdAt!.toLocal().day}/${r.createdAt!.toLocal().month}/${r.createdAt!.toLocal().year} ${r.createdAt!.toLocal().hour.toString().padLeft(2, '0')}:${r.createdAt!.toLocal().minute.toString().padLeft(2, '0')}',
+                    ),
                   if ((r.url ?? '').isNotEmpty) Text('CV: ${r.url}'),
                   if ((r.email ?? '').isNotEmpty) Text('Email: ${r.email}'),
                 ],
@@ -313,6 +347,13 @@ class _AccountScreenState extends State<AccountScreen> {
             title: const Text('Nhận thông báo việc phù hợp qua email'),
             subtitle: const Text('Gửi định kỳ theo danh mục bạn chọn'),
           ),
+          if (!_subscribeJobs && _subscriberId == null)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 8),
+              child: Text(
+                'Chưa đăng ký nhận jobs qua email. Bật công tắc hoặc nhấn "Cập nhật" để tạo đăng ký.',
+              ),
+            ),
           const SizedBox(height: 8),
           _LabeledField(
             label: 'Email nhận việc',
@@ -473,8 +514,26 @@ class _AccountScreenState extends State<AccountScreen> {
     try {
       final name = _nameCtl.text.trim();
       final address = _addressCtl.text.trim();
-      final age = int.tryParse(_ageCtl.text.trim());
-      await _api.updateAccount(name: name.isNotEmpty ? name : null, address: address.isNotEmpty ? address : null, age: age, gender: _gender);
+      // Map VN label back to backend enum
+      String? genderCode;
+      switch (_gender) {
+        case 'Nam':
+          genderCode = 'MALE';
+          break;
+        case 'Nữ':
+          genderCode = 'FEMALE';
+          break;
+        case 'Khác':
+          genderCode = 'OTHER';
+          break;
+        default:
+          genderCode = null;
+      }
+      await _api.updateUser(
+        name: name.isNotEmpty ? name : null,
+        address: address.isNotEmpty ? address : null,
+        gender: genderCode,
+      );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã cập nhật hồ sơ trên hệ thống')));
     } catch (e) {

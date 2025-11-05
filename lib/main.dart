@@ -17,12 +17,16 @@ class MyApp extends StatelessWidget {
       title: 'JobHunter',
       theme: ThemeData(
         useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
+        // Tông màu xanh - trắng - xám
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF1E88E5), // xanh chủ đạo
+          brightness: Brightness.light,
+        ),
         visualDensity: VisualDensity.compact,
-        scaffoldBackgroundColor: const Color(0xFFF7F8FA),
+        scaffoldBackgroundColor: const Color(0xFFF3F5F9), // xám nhạt nền
         appBarTheme: const AppBarTheme(
           backgroundColor: Colors.white,
-          foregroundColor: Colors.indigo,
+          foregroundColor: Color(0xFF1E88E5),
           elevation: 0,
           centerTitle: false,
         ),
@@ -31,21 +35,21 @@ class MyApp extends StatelessWidget {
           fillColor: Colors.white,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: const BorderSide(color: Color(0xFFE0E3EB)),
+            borderSide: const BorderSide(color: Color(0xFFE1E6EF)),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: const BorderSide(color: Color(0xFFE0E3EB)),
+            borderSide: const BorderSide(color: Color(0xFFE1E6EF)),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: const BorderSide(color: Colors.indigo),
+            borderSide: const BorderSide(color: Color(0xFF1E88E5)),
           ),
           contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.indigo,
+            backgroundColor: const Color(0xFF1E88E5),
             foregroundColor: Colors.white,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
@@ -53,16 +57,36 @@ class MyApp extends StatelessWidget {
         ),
         outlinedButtonTheme: OutlinedButtonThemeData(
           style: OutlinedButton.styleFrom(
-            foregroundColor: Colors.indigo,
-            side: const BorderSide(color: Colors.indigo),
+            foregroundColor: const Color(0xFF1E88E5),
+            side: const BorderSide(color: Color(0xFF1E88E5)),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
           ),
         ),
-        // cardTheme removed for compatibility; using default card styling
+        cardTheme: CardThemeData(
+          color: Colors.white,
+          elevation: 2,
+          shadowColor: const Color(0x221E88E5),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: const BorderSide(color: Color(0xFFE1E6EF)),
+          ),
+        ),
+        chipTheme: const ChipThemeData(
+          backgroundColor: Color(0xFFE9EEF6),
+          selectedColor: Color(0xFF1E88E5),
+          secondarySelectedColor: Color(0xFF1E88E5),
+          labelStyle: TextStyle(color: Color(0xFF1A2A3A)),
+        ),
+        navigationBarTheme: const NavigationBarThemeData(
+          backgroundColor: Colors.white,
+          indicatorColor: Color(0x331E88E5),
+          surfaceTintColor: Colors.white,
+          elevation: 2,
+        ),
         popupMenuTheme: const PopupMenuThemeData(surfaceTintColor: Colors.white),
-        dividerTheme: const DividerThemeData(color: Color(0xFFE0E3EB)),
-        listTileTheme: const ListTileThemeData(iconColor: Colors.indigo),
+        dividerTheme: const DividerThemeData(color: Color(0xFFE1E6EF)),
+        listTileTheme: const ListTileThemeData(iconColor: Color(0xFF1E88E5)),
       ),
       debugShowCheckedModeBanner: false,
       home: const _HomeDecider(),
