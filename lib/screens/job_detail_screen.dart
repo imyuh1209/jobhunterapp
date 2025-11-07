@@ -54,6 +54,7 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
       final s = asStr(v).trim();
       return s.isNotEmpty ? s : '';
     }
+
     final user = acc['user'];
     final data = acc['data'];
     final candidates = <String>[
@@ -63,8 +64,10 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
       if (user is Map) pick(user['username']),
       if (data is Map) pick(data['email']),
       if (data is Map) pick(data['username']),
-      if (data is Map && data['user'] is Map) pick((data['user'] as Map)['email']),
-      if (data is Map && data['user'] is Map) pick((data['user'] as Map)['username']),
+      if (data is Map && data['user'] is Map)
+        pick((data['user'] as Map)['email']),
+      if (data is Map && data['user'] is Map)
+        pick((data['user'] as Map)['username']),
     ];
     for (final c in candidates) {
       if (c.isNotEmpty) return c;
@@ -108,12 +111,10 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
     }
   }
 
-
   Future<void> _apply() async {
     if (_loadingApply || _applied) return;
     await _showApplySheet();
   }
-
 
   Future<void> _showApplySheet() async {
     // Lấy email từ tài khoản để hiển thị (read-only)
@@ -184,10 +185,10 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
                   if (fileName.isEmpty) {
                     throw Exception('Upload CV thất bại');
                   }
-                  final finalUrl = _api.buildResumeUrl(fileName);
+                  // Lưu 'url' đúng chuẩn backend: chỉ fileName
                   await _api.applyResumeForJob(
                     jobId: widget.jobId,
-                    url: finalUrl,
+                    url: fileName,
                     status: 'PENDING',
                     email: emailValue.isNotEmpty ? emailValue : null,
                   );
@@ -259,8 +260,10 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
                             children: [
                               Text(_job?.company.name ?? ''),
                               if ((_job?.location ?? '').isNotEmpty)
-                                Text('Địa điểm: ${FormatUtils.formatLocation(_job?.location ?? '')}',
-                                    style: Theme.of(ctx).textTheme.bodySmall),
+                                Text(
+                                  'Địa điểm: ${FormatUtils.formatLocation(_job?.location ?? '')}',
+                                  style: Theme.of(ctx).textTheme.bodySmall,
+                                ),
                               Text(
                                 'Lương: ${FormatUtils.formatSalaryFromTo(_job?.salaryFrom, _job?.salaryTo, isNegotiable: _job?.isNegotiable ?? false)}',
                                 style: Theme.of(ctx).textTheme.bodySmall,
@@ -336,7 +339,12 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
                       width: double.infinity,
                       height: 44,
                       child: FilledButton(
-                        onPressed: (submitting || emailValue.trim().isEmpty || pickedBytes == null) ? null : submit,
+                        onPressed:
+                            (submitting ||
+                                emailValue.trim().isEmpty ||
+                                pickedBytes == null)
+                            ? null
+                            : submit,
                         child: submitting
                             ? const SizedBox(
                                 width: 18,
@@ -416,7 +424,11 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
                   title: job.title,
                   company: job.company.name,
                   location: job.location,
-                  salary: FormatUtils.formatSalaryFromTo(job.salaryFrom, job.salaryTo, isNegotiable: job.isNegotiable),
+                  salary: FormatUtils.formatSalaryFromTo(
+                    job.salaryFrom,
+                    job.salaryTo,
+                    isNegotiable: job.isNegotiable,
+                  ),
                   applicantCount: _applicantCount,
                   description: job.description,
                   onApply: (_loadingApply || _applied) ? null : _apply,
@@ -471,7 +483,8 @@ class _FallbackAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final String letter = (company.isNotEmpty ? company.trim()[0] : '?').toUpperCase();
+    final String letter = (company.isNotEmpty ? company.trim()[0] : '?')
+        .toUpperCase();
     return Container(
       width: 120,
       height: 120,

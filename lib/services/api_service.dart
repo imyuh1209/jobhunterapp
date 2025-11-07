@@ -6,11 +6,13 @@ import '../models/auth_response.dart';
 import '../models/job.dart';
 import '../models/job_detail.dart';
 import '../models/company_detail.dart';
+import '../models/company_brief.dart';
 import '../models/rest_response.dart';
 import '../models/saved_job.dart';
 import '../models/resume.dart';
 import '../models/subscriber.dart';
 import '../models/jobs_search_result.dart';
+import '../models/home_banner.dart';
 import 'dart:typed_data';
 import 'dio_client.dart';
 
@@ -31,7 +33,11 @@ class ApiService {
       'POST /api/v1/auth/login payload: {"username":"$email","password":"******"}',
     );
     try {
-      final data = await client.login(username: email, password: password, remember: remember);
+      final data = await client.login(
+        username: email,
+        password: password,
+        remember: remember,
+      );
       final token =
           data['access_token'] ?? data['accessToken'] ?? data['token'];
       return AuthResponse(token: token?.toString() ?? '');
@@ -81,12 +87,18 @@ class ApiService {
       final status = e.response?.statusCode;
       // Phân biệt rõ 400 (dữ liệu/đăng ký trùng) và 401 (token sai)
       if (status == 400) {
-        throw Exception('Đăng ký thất bại: 400 - Dữ liệu không hợp lệ hoặc email đã tồn tại${message.isNotEmpty ? ' - $message' : ''}');
+        throw Exception(
+          'Đăng ký thất bại: 400 - Dữ liệu không hợp lệ hoặc email đã tồn tại${message.isNotEmpty ? ' - $message' : ''}',
+        );
       }
       if (status == 401) {
-        throw Exception('Đăng ký thất bại: 401 - Token không hợp lệ (không kèm/đã hết hạn)${message.isNotEmpty ? ' - $message' : ''}');
+        throw Exception(
+          'Đăng ký thất bại: 401 - Token không hợp lệ (không kèm/đã hết hạn)${message.isNotEmpty ? ' - $message' : ''}',
+        );
       }
-      throw Exception('Đăng ký thất bại: ${status ?? ''}${message.isNotEmpty ? ' - $message' : ''}');
+      throw Exception(
+        'Đăng ký thất bại: ${status ?? ''}${message.isNotEmpty ? ' - $message' : ''}',
+      );
     }
   }
 
@@ -347,7 +359,7 @@ class ApiService {
   Future<String> uploadCvBytes(
     Uint8List bytes,
     String filename, {
-    String folder = 'resumes',
+    String folder = 'resume',
   }) async {
     final client = await _clientFuture;
     try {
@@ -372,9 +384,44 @@ class ApiService {
     }
   }
 
-  String buildResumeUrl(String fileName, {String folder = 'resumes'}) {
+  String buildResumeUrl(String fileName, {String folder = 'resume'}) {
     if (fileName.isEmpty) return '';
     return '/storage/$folder/$fileName';
+  }
+
+  // Tạo bản ghi Resume cho CV đã tải lên (job null)
+  Future<bool> createResumeRecord({
+    required String fileName,
+    String? email,
+  }) async {
+    final client = await _clientFuture;
+    try {
+      final acc = await _getAccountSafe();
+      final uidRaw =
+          acc['id'] ??
+          acc['userId'] ??
+          (acc['user'] is Map ? acc['user']['id'] : null);
+      int? uid = uidRaw is int
+          ? uidRaw
+          : int.tryParse(uidRaw?.toString() ?? '');
+      if (uid == null) throw Exception('Không tìm thấy user.id để tạo CV');
+      final payload = {
+        if (email != null && email.isNotEmpty) 'email': email,
+        'url': fileName,
+        'user': {'id': uid},
+      };
+      await client.dio.post(
+        '/api/v1/resumes',
+        data: payload,
+        options: Options(headers: {'Accept': 'application/json'}),
+      );
+      return true;
+    } on DioException catch (e) {
+      final message = extractMessage(e.response?.data);
+      throw Exception(
+        'Tạo CV thất bại: ${e.response?.statusCode ?? ''}${message.isNotEmpty ? ' - $message' : ''}',
+      );
+    }
   }
 
   Future<Map<String, dynamic>> _getAccountSafe() async {
@@ -464,11 +511,12 @@ class ApiService {
     }
   }
 
-  Future<List<Resume>> getMyResumes({int page = 1, int pageSize = 10}) async {
+  Future<List<Resume>> getMyResumes({int page = 0, int pageSize = 10}) async {
     final client = await _clientFuture;
     try {
-      final res = await client.dio.post(
+      final res = await client.dio.get(
         '/api/v1/resumes/by-user',
+        queryParameters: {'page': page, 'size': pageSize},
         options: Options(headers: {'Accept': 'application/json'}),
       );
       return parsePageList<Resume>(res.data, (m) => Resume.fromJson(m));
@@ -477,6 +525,51 @@ class ApiService {
       throw Exception(
         'Tải hồ sơ của tôi thất bại: ${e.response?.statusCode ?? ''}${message.isNotEmpty ? ' - $message' : ''}',
       );
+    }
+  }
+
+  // Chỉ lấy “CV đã tải lên” (resume có job == null) của user hiện tại
+  Future<List<Resume>> getMyUploadedResumes({int page = 0, int pageSize = 10}) async {
+    final client = await _clientFuture;
+    try {
+      final res = await client.dio.get(
+        '/api/v1/resumes/my-uploads',
+        queryParameters: {'page': page, 'size': pageSize},
+        options: Options(headers: {'Accept': 'application/json'}),
+      );
+      return parsePageList<Resume>(res.data, (m) => Resume.fromJson(m));
+    } on DioException catch (e) {
+      final message = extractMessage(e.response?.data);
+      throw Exception(
+        'Tải CV đã tải lên thất bại: ${e.response?.statusCode ?? ''}${message.isNotEmpty ? ' - $message' : ''}',
+      );
+    }
+  }
+
+  // Debug/raw: trả thẳng danh sách map từ resp.data['result'] nếu có
+  Future<List<Map<String, dynamic>>> getMyUploadsRaw({int page = 0, int pageSize = 10}) async {
+    final client = await _clientFuture;
+    try {
+      final res = await client.dio.get(
+        '/api/v1/resumes/my-uploads',
+        queryParameters: {'page': page, 'size': pageSize},
+        options: Options(headers: {'Accept': 'application/json'}),
+      );
+      final root = res.data;
+      debugPrint('[/my-uploads] resp.data = '+(root?.toString() ?? 'null'));
+      if (root is Map<String, dynamic>) {
+        final result = root['result'];
+        if (result is List) {
+          return result.whereType<Map>().map((e) => e.cast<String, dynamic>()).toList();
+        }
+      } else if (root is List) {
+        return root.whereType<Map>().map((e) => e.cast<String, dynamic>()).toList();
+      }
+      // Fallback qua parser tolerant
+      return unwrapPageList(root);
+    } on DioException catch (e) {
+      final message = extractMessage(e.response?.data);
+      throw Exception('getMyUploads failed: ${e.response?.statusCode ?? ''}${message.isNotEmpty ? ' - $message' : ''}');
     }
   }
 
@@ -767,6 +860,82 @@ class ApiService {
       return body?.toString() ?? '';
     } catch (_) {
       return '';
+    }
+  }
+
+  // Home Banners: GET /api/v1/banners/home
+  Future<List<HomeBanner>> getHomeBanners() async {
+    final client = await _clientFuture;
+    try {
+      final res = await client.dio.get(
+        '/api/v1/banners/home',
+        options: Options(
+          headers: {'Accept': 'application/json'},
+          extra: {'skipAuth': true},
+        ),
+      );
+      // Backend có thể trả mảng trực tiếp trong data hoặc root
+      return parseList<HomeBanner>(res.data, (m) => HomeBanner.fromJson(m));
+    } on DioException catch (e) {
+      final message = extractMessage(e.response?.data);
+      throw Exception(
+        'Tải banner trang chủ thất bại: ${e.response?.statusCode ?? ''}${message.isNotEmpty ? ' - $message' : ''}',
+      );
+    }
+  }
+
+  // Featured companies (with logos). Fallback to paginated list filtered by logo.
+  Future<List<CompanyBrief>> getTopCompanies({
+    int page = 1,
+    int size = 12,
+  }) async {
+    final client = await _clientFuture;
+    try {
+      // Ưu tiên endpoint chuyên biệt nếu backend có: /companies/featured
+      Response res;
+      try {
+        res = await client.dio.get(
+          '/api/v1/companies/featured',
+          queryParameters: {
+            'limit': size,
+          },
+          options: Options(
+            headers: {'Accept': 'application/json'},
+            extra: {'skipAuth': true},
+          ),
+        );
+      } on DioException catch (e) {
+        // Fallback sang danh sách chung
+        if (e.response?.statusCode != 404) rethrow;
+        res = await client.dio.get(
+          '/api/v1/companies',
+          queryParameters: {
+            'page': page,
+            'size': size,
+            'sort': 'id,desc',
+            'filter': 'logo!=null',
+          },
+          options: Options(
+            headers: {'Accept': 'application/json'},
+            extra: {'skipAuth': true},
+          ),
+        );
+      }
+      // Backend có thể trả data dạng list trực tiếp hoặc trong data.result/content
+      return parsePageList<CompanyBrief>(
+            res.data,
+            (m) => CompanyBrief.fromJson(m),
+          ).isNotEmpty
+          ? parsePageList<CompanyBrief>(
+              res.data,
+              (m) => CompanyBrief.fromJson(m),
+            )
+          : parseList<CompanyBrief>(res.data, (m) => CompanyBrief.fromJson(m));
+    } on DioException catch (e) {
+      final message = extractMessage(e.response?.data);
+      throw Exception(
+        'Tải danh sách công ty thất bại: ${e.response?.statusCode ?? ''}${message.isNotEmpty ? ' - $message' : ''}',
+      );
     }
   }
 }

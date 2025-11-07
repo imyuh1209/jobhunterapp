@@ -2,6 +2,7 @@ class Resume {
   final String id;
   final String? email;
   final String? url;
+  final String? urlStorage;
   final String? status;
   final int? userId;
   final String? jobId;
@@ -13,6 +14,7 @@ class Resume {
     required this.id,
     this.email,
     this.url,
+    this.urlStorage,
     this.status,
     this.userId,
     this.jobId,
@@ -60,6 +62,7 @@ class Resume {
       id: idRaw?.toString() ?? '',
       email: json['email']?.toString(),
       url: json['url']?.toString(),
+      urlStorage: json['urlStorage']?.toString() ?? json['url_storage']?.toString(),
       status: json['status']?.toString(),
       userId: uid,
       jobId: jid,

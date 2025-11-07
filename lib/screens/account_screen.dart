@@ -78,17 +78,21 @@ class _AccountScreenState extends State<AccountScreen> {
       try {
         acc = await _api.getUserMe();
       } catch (_) {}
-      bool emptyAcc = acc.isEmpty || (
-        (acc['email'] == null || acc['email'].toString().isEmpty) &&
-        (acc['name'] == null || acc['name'].toString().isEmpty)
-      );
+      bool emptyAcc =
+          acc.isEmpty ||
+          ((acc['email'] == null || acc['email'].toString().isEmpty) &&
+              (acc['name'] == null || acc['name'].toString().isEmpty));
       if (emptyAcc) {
         try {
           acc = await _api.getAccount();
         } catch (_) {}
       }
 
-      final name = acc['name'] ?? acc['fullName'] ?? acc['username'] ?? acc['displayName'];
+      final name =
+          acc['name'] ??
+          acc['fullName'] ??
+          acc['username'] ??
+          acc['displayName'];
       final email = acc['email'] ?? acc['username'];
       final genderRaw = acc['gender'] ?? acc['sex'];
       final address = acc['address'] ?? acc['location'];
@@ -99,7 +103,7 @@ class _AccountScreenState extends State<AccountScreen> {
         final g = (genderRaw?.toString() ?? '').toUpperCase();
         if (g == 'MALE') return 'Nam';
         if (g == 'FEMALE') return 'Nữ';
-        if (['OTHER','UNKNOWN','KHAC'].contains(g)) return 'Khác';
+        if (['OTHER', 'UNKNOWN', 'KHAC'].contains(g)) return 'Khác';
         return genderRaw?.toString();
       }();
       setState(() {
@@ -148,10 +152,18 @@ class _AccountScreenState extends State<AccountScreen> {
     await _storage.write(key: 'profile_name', value: _nameCtl.text.trim());
     await _storage.write(key: 'profile_age', value: _ageCtl.text.trim());
     await _storage.write(key: 'profile_gender', value: _gender);
-    await _storage.write(key: 'profile_address', value: _addressCtl.text.trim());
-    await _storage.write(key: 'profile_company', value: _companyCtl.text.trim());
+    await _storage.write(
+      key: 'profile_address',
+      value: _addressCtl.text.trim(),
+    );
+    await _storage.write(
+      key: 'profile_company',
+      value: _companyCtl.text.trim(),
+    );
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã cập nhật thông tin cục bộ')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Đã cập nhật thông tin cục bộ')),
+    );
   }
 
   // Bỏ lưu local cho email subscription; dùng hoàn toàn dữ liệu backend
@@ -160,7 +172,14 @@ class _AccountScreenState extends State<AccountScreen> {
     try {
       final skills = await _api.fetchSkills(page: 1, size: 100);
       setState(() {
-        _skillOptions = skills.map((e) => {'id': e['id']?.toString() ?? '', 'name': e['name']?.toString() ?? ''}).toList();
+        _skillOptions = skills
+            .map(
+              (e) => {
+                'id': e['id']?.toString() ?? '',
+                'name': e['name']?.toString() ?? '',
+              },
+            )
+            .toList();
       });
     } catch (_) {}
     try {
@@ -170,13 +189,21 @@ class _AccountScreenState extends State<AccountScreen> {
           _subscriberId = sub.id.isNotEmpty ? sub.id : null;
           _subscribeJobs = true;
           _emailSubCtl.text = sub.email;
-          final ids = sub.skills.map((s) => s.id).where((id) => id.isNotEmpty).toSet();
+          final ids = sub.skills
+              .map((s) => s.id)
+              .where((id) => id.isNotEmpty)
+              .toSet();
           if (ids.isNotEmpty) {
             _selectedSkillIds = ids;
           } else {
             // fallback by name
-            final nameToId = {for (final o in _skillOptions) o['name']!: o['id']!};
-            _selectedSkillIds = sub.skills.map((s) => nameToId[s.name]).whereType<String>().toSet();
+            final nameToId = {
+              for (final o in _skillOptions) o['name']!: o['id']!,
+            };
+            _selectedSkillIds = sub.skills
+                .map((s) => nameToId[s.name])
+                .whereType<String>()
+                .toSet();
           }
         });
       }
@@ -224,7 +251,11 @@ class _AccountScreenState extends State<AccountScreen> {
             ],
           ),
           actions: [
-            IconButton(onPressed: _logout, tooltip: 'Đăng xuất', icon: const Icon(Icons.logout)),
+            IconButton(
+              onPressed: _logout,
+              tooltip: 'Đăng xuất',
+              icon: const Icon(Icons.logout),
+            ),
           ],
         ),
         body: TabBarView(
@@ -245,12 +276,19 @@ class _AccountScreenState extends State<AccountScreen> {
         children: [
           _LabeledField(
             label: 'Tên hiển thị',
-            child: TextField(controller: _nameCtl, decoration: const InputDecoration(hintText: 'Nhập tên hiển thị')),
+            child: TextField(
+              controller: _nameCtl,
+              decoration: const InputDecoration(hintText: 'Nhập tên hiển thị'),
+            ),
           ),
           const SizedBox(height: 12),
           _LabeledField(
             label: 'Email',
-            child: TextField(readOnly: true, controller: TextEditingController(text: _email), decoration: const InputDecoration()),
+            child: TextField(
+              readOnly: true,
+              controller: TextEditingController(text: _email),
+              decoration: const InputDecoration(),
+            ),
           ),
           const SizedBox(height: 12),
           const SizedBox(height: 12),
@@ -271,13 +309,21 @@ class _AccountScreenState extends State<AccountScreen> {
             label: 'Địa chỉ',
             child: TextField(
               controller: _addressCtl,
-              decoration: InputDecoration(suffixIcon: IconButton(onPressed: () => _addressCtl.clear(), icon: const Icon(Icons.close)) ),
+              decoration: InputDecoration(
+                suffixIcon: IconButton(
+                  onPressed: () => _addressCtl.clear(),
+                  icon: const Icon(Icons.close),
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 16),
           SizedBox(
             height: 44,
-            child: ElevatedButton(onPressed: _saveProfileToBackend, child: const Text('Cập nhật')),
+            child: ElevatedButton(
+              onPressed: _saveProfileToBackend,
+              child: const Text('Cập nhật'),
+            ),
           ),
         ],
       ),
@@ -307,13 +353,20 @@ class _AccountScreenState extends State<AccountScreen> {
             final status = r.status ?? 'PENDING';
             final color = _statusColor(status);
             return ListTile(
-              leading: CircleAvatar(backgroundColor: color, child: const Icon(Icons.assignment_turned_in, color: Colors.white)),
+              leading: CircleAvatar(
+                backgroundColor: color,
+                child: const Icon(
+                  Icons.assignment_turned_in,
+                  color: Colors.white,
+                ),
+              ),
               title: Text(r.jobTitle ?? 'Hồ sơ ứng tuyển'),
               subtitle: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('Trạng thái: $status'),
-                  if ((r.companyName ?? '').isNotEmpty) Text('Công ty: ${r.companyName}'),
+                  if ((r.companyName ?? '').isNotEmpty)
+                    Text('Công ty: ${r.companyName}'),
                   if (r.createdAt != null)
                     Text(
                       'Ngày nộp: ${r.createdAt!.toLocal().day}/${r.createdAt!.toLocal().month}/${r.createdAt!.toLocal().year} ${r.createdAt!.toLocal().hour.toString().padLeft(2, '0')}:${r.createdAt!.toLocal().minute.toString().padLeft(2, '0')}',
@@ -325,7 +378,11 @@ class _AccountScreenState extends State<AccountScreen> {
               onTap: () {
                 final jid = r.jobId;
                 if (jid != null && jid.isNotEmpty) {
-                  Navigator.of(context).push(MaterialPageRoute(builder: (_) => JobDetailScreen(jobId: jid)));
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => JobDetailScreen(jobId: jid),
+                    ),
+                  );
                 }
               },
             );
@@ -360,7 +417,9 @@ class _AccountScreenState extends State<AccountScreen> {
             child: TextField(
               controller: _emailSubCtl,
               readOnly: true,
-              decoration: const InputDecoration(hintText: 'Sử dụng email tài khoản'),
+              decoration: const InputDecoration(
+                hintText: 'Sử dụng email tài khoản',
+              ),
             ),
           ),
           const SizedBox(height: 12),
@@ -392,7 +451,10 @@ class _AccountScreenState extends State<AccountScreen> {
           const SizedBox(height: 16),
           SizedBox(
             height: 44,
-            child: ElevatedButton(onPressed: _saveSubscriberToServer, child: const Text('Cập nhật')),
+            child: ElevatedButton(
+              onPressed: _saveSubscriberToServer,
+              child: const Text('Cập nhật'),
+            ),
           ),
         ],
       ),
@@ -411,12 +473,22 @@ class _AccountScreenState extends State<AccountScreen> {
         children: [
           _LabeledField(
             label: 'Mật khẩu hiện tại',
-            child: TextField(controller: _currentPwdCtl, obscureText: true, decoration: const InputDecoration(hintText: 'Nhập mật khẩu hiện tại')),
+            child: TextField(
+              controller: _currentPwdCtl,
+              obscureText: true,
+              decoration: const InputDecoration(
+                hintText: 'Nhập mật khẩu hiện tại',
+              ),
+            ),
           ),
           const SizedBox(height: 12),
           _LabeledField(
             label: 'Mật khẩu mới',
-            child: TextField(controller: _newPwdCtl, obscureText: true, decoration: const InputDecoration(hintText: 'Nhập mật khẩu mới')),
+            child: TextField(
+              controller: _newPwdCtl,
+              obscureText: true,
+              decoration: const InputDecoration(hintText: 'Nhập mật khẩu mới'),
+            ),
           ),
           const SizedBox(height: 16),
           SizedBox(
@@ -426,18 +498,27 @@ class _AccountScreenState extends State<AccountScreen> {
                 final cur = _currentPwdCtl.text.trim();
                 final neu = _newPwdCtl.text.trim();
                 if (cur.isEmpty || neu.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vui lòng nhập đủ mật khẩu')));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Vui lòng nhập đủ mật khẩu')),
+                  );
                   return;
                 }
                 try {
-                  await _api.changePassword(currentPassword: cur, newPassword: neu);
+                  await _api.changePassword(
+                    currentPassword: cur,
+                    newPassword: neu,
+                  );
                   _currentPwdCtl.clear();
                   _newPwdCtl.clear();
                   if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đổi mật khẩu thành công')));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Đổi mật khẩu thành công')),
+                  );
                 } catch (e) {
                   if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
                 }
               },
               child: const Text('Đổi mật khẩu'),
@@ -460,32 +541,58 @@ class _AccountScreenState extends State<AccountScreen> {
           _selectedSkillIds.clear();
         });
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã tắt nhận job qua email')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Đã tắt nhận job qua email')),
+        );
         return;
       }
       final email = _emailSubCtl.text.trim();
       if (email.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vui lòng nhập email')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Vui lòng nhập email')));
         return;
       }
-      final ids = _selectedSkillIds.map((e) => int.tryParse(e)).whereType<int>().toList();
+      final ids = _selectedSkillIds
+          .map((e) => int.tryParse(e))
+          .whereType<int>()
+          .toList();
       if (ids.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vui lòng chọn ít nhất một kỹ năng')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Vui lòng chọn ít nhất một kỹ năng')),
+        );
         return;
       }
       if (_subscriberId == null) {
-        final created = await _api.createSubscriber(email: email, name: _nameCtl.text.trim(), skillIds: ids);
-        setState(() => _subscriberId = created.id.isNotEmpty ? created.id : null);
+        final created = await _api.createSubscriber(
+          email: email,
+          name: _nameCtl.text.trim(),
+          skillIds: ids,
+        );
+        setState(
+          () => _subscriberId = created.id.isNotEmpty ? created.id : null,
+        );
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã đăng ký nhận job qua email')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Đã đăng ký nhận job qua email')),
+        );
       } else {
-        await _api.updateSubscriber(id: _subscriberId!, email: email, name: _nameCtl.text.trim(), skillIds: ids);
+        await _api.updateSubscriber(
+          id: _subscriberId!,
+          email: email,
+          name: _nameCtl.text.trim(),
+          skillIds: ids,
+        );
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã cập nhật thông tin nhận job')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Đã cập nhật thông tin nhận job')),
+        );
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
     }
   }
 
@@ -502,10 +609,14 @@ class _AccountScreenState extends State<AccountScreen> {
           _selectedSkillIds.clear();
         });
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã tắt nhận job qua email')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Đã tắt nhận job qua email')),
+        );
       } catch (e) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
       }
     }
   }
@@ -535,10 +646,14 @@ class _AccountScreenState extends State<AccountScreen> {
         gender: genderCode,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã cập nhật hồ sơ trên hệ thống')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Đã cập nhật hồ sơ trên hệ thống')),
+      );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
     }
   }
 }

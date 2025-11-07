@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/theme_controller.dart';
 
 class HeaderAppBar extends StatefulWidget implements PreferredSizeWidget {
   final void Function(String category) onSearch;
@@ -104,6 +105,13 @@ class _HeaderAppBarState extends State<HeaderAppBar> {
         ],
       ),
       actions: [
+        IconButton(
+          tooltip: 'Bật/tắt Dark Mode',
+          icon: Icon(Theme.of(context).brightness == Brightness.dark ? Icons.light_mode : Icons.dark_mode),
+          onPressed: () {
+            ThemeProvider.of(context).toggle();
+          },
+        ),
         PopupMenuButton<String>(
           onSelected: (value) async {
             switch (value) {

@@ -15,6 +15,18 @@ class ApiClient {
 
   ApiClient._(this.dio, this.secureStorage, this.cookieJar);
 
+  static String _extractMessage(dynamic body) {
+    try {
+      if (body is Map<String, dynamic>) {
+        final m = body['message'] ?? body['error'];
+        return m?.toString() ?? '';
+      }
+      return body?.toString() ?? '';
+    } catch (_) {
+      return '';
+    }
+  }
+
   static Future<ApiClient> create({required String baseUrl}) async {
     final dio = Dio(
       BaseOptions(
@@ -45,8 +57,8 @@ class ApiClient {
       dio.interceptors.add(LogInterceptor(
         requestHeader: true,
         requestBody: true,
-        responseHeader: false,
-        responseBody: false,
+        responseHeader: true,
+        responseBody: true,
       ));
     }
 
@@ -85,6 +97,7 @@ class ApiClient {
                 data = copy;
               }
               debugPrint('[REQ] '+method+' '+path+' skipAuth='+skipAuth.toString()+' body='+ (data is Map ? data.toString() : (data?.toString() ?? '')));
+              debugPrint('TOKEN='+(accessToken ?? '<none>'));
             } catch (_) {}
           }
           handler.next(options);
@@ -112,7 +125,15 @@ class ApiClient {
           final isUnauthorized = err.response?.statusCode == 401;
           final isUsersMeBadRequest = (err.response?.statusCode == 400) &&
               (err.requestOptions.path.contains('/api/v1/users/me'));
-          if (isUnauthorized || isUsersMeBadRequest) {
+          // Một số backend trả 400 khi JWT hết hạn/hỏng (ví dụ IdInvalidException)
+          final msg = _extractMessage(err.response?.data);
+          final isBadAuth400 = (err.response?.statusCode == 400) && (
+            msg.contains('IdInvalidException') ||
+            msg.contains('Invalid JWT') ||
+            msg.contains('Jwt') ||
+            msg.toLowerCase().contains('invalid token')
+          );
+          if (isUnauthorized || isUsersMeBadRequest || isBadAuth400) {
             // Tránh lặp vô hạn: nếu đã retry một lần, không refresh nữa
             if (err.requestOptions.extra['retry'] == true) {
               return handler.next(err);
